@@ -1,6 +1,6 @@
-.env
-secrets/
-secrets/*
-# Ignore sensitive logs and local overrides
-*.log
-.env.local
+#.env
+#secrets/
+#secrets/*
+## Ignore sensitive logs and local overrides
+#*.log
+#.env.local
