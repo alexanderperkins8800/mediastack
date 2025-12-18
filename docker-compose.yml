@@ -42,6 +42,8 @@ services:
       - VPN_SERVICE_PROVIDER=nordvpn
       - VPN_TYPE=openvpn
       - SERVER_COUNTRIES=United States
+      - OPENVPN_USER=${OPENVPN_USER}
+      - OPENVPN_PASSWORD=${OPENVPN_PASSWORD}
       # Credentials should be mounted via the secret below; some images accept file-based auth.
       # See README for how to format ./secrets/vpn_credentials.env
     volumes:
@@ -55,8 +57,6 @@ services:
       timeout: 10s
       retries: 5
     logging: *default_logging
-    secrets:
-      - vpn_credentials
 
   # SOCKS5 proxy running inside the VPN network namespace. Other services will use this proxy
   # for outbound traffic. This service shares gluetun's network namespace so its outbound
@@ -275,10 +275,6 @@ services:
       timeout: 5s
       retries: 5
     logging: *default_logging
-
-secrets:
-  vpn_credentials:
-    file: ./secrets/vpn_credentials.env
 
 networks:
   media_net:

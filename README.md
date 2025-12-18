@@ -32,24 +32,14 @@ Prerequisites
 
 Files in this repo
 ------------------
-- `docker-compose.yaml` — services, networks, healthchecks, logging, and secrets.
- - `.env.template` — template configuration file; copy to `.env` and edit (`.env` is gitignored).
-- `secrets/vpn_credentials.env` — template secret file (do not commit real credentials).
+- `docker-compose.yml` — services, networks, healthchecks, and logging.
+ - `.env.template` — template configuration file; copy to `.env` and edit (`.env` is gitignored). Your VPN credentials (OPENVPN_USER, OPENVPN_PASSWORD) should also be added to this .env file.
 
-Security and secret handling
----------------------------
-- Do NOT commit `./secrets/vpn_credentials.env` or a populated `.env` to source
-	control. Add them to `.gitignore`.
-- Two ways to provide credentials:
-	1. Non-swarm: keep the secret file at `./secrets/vpn_credentials.env` and
-		 ensure its permissions are restricted (chmod 600).
-	2. Swarm mode: create a Docker secret and reference it in the compose stack:
+Security and environment variable handling
+-----------------------------------------
+- Do NOT commit a populated `.env` to source control. Ensure it's listed in `.gitignore`.
+- VPN credentials (`OPENVPN_USER` and `OPENVPN_PASSWORD`) are loaded from your `.env` file by the `gluetun` service.
 
-		 ```bash
-		 docker secret create vpn_credentials ./secrets/vpn_credentials.env
-		 ```
-
-		 (Note: `docker secret` requires Docker Swarm / stack deploy.)
 
 Preparing configuration
 -----------------------
@@ -63,13 +53,6 @@ nano .env
 # or on Windows: notepad .env
 ```
 
-2. Create the `secrets` directory and add VPN credentials (template in repo):
-
-```bash
-mkdir -p secrets
-# Edit secrets/vpn_credentials.env with your VPN username/password
-chmod 600 secrets/vpn_credentials.env
-```
 
 3. Ensure the host has `/dev/net/tun` available. On a Linux host run:
 
@@ -154,17 +137,8 @@ Troubleshooting
 - If downloads use your real IP: ensure the downloader is configured to use SOCKS5
 	(env vars alone do not force all protocols through the proxy).
 - If `gluetun` fails with TUN errors: verify `/dev/net/tun` exists and host supports it.
-- If secret handling fails: either use the local `./secrets` file (ensure perms) or
-	use Docker Swarm secrets and `docker stack deploy`.
-
+- If environment variable handling fails for VPN credentials: ensure your `.env` file contains `OPENVPN_USER` and `OPENVPN_PASSWORD`.
 Next steps I can take for you
 ----------------------------
-- Add an `entrypoint` wrapper that reads `/run/secrets/vpn_credentials` and
-	exports `OPENVPN_USER`/`OPENVPN_PASSWORD` for `gluetun` if the image does not
-	natively support file-based secrets.
 - Add explicit per-app configuration snippets for qBittorrent and NZBGet.
-
-If you want me to implement the entrypoint wrapper and wire it into the compose
-file, say so and I'll add it (small script + updated `gluetun` service to mount
-the script).
 
