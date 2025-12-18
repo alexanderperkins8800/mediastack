@@ -1,0 +1,288 @@
+###############################################
+# Media server stack — VPN-backed downloaders
+#
+# Purpose: keep download clients (qBittorrent, NZBGet) and ARR apps
+# outbound traffic routed through a VPN while allowing ARR apps and
+# frontends to communicate internally on the `media_net` bridge.
+#
+# Approach (Option 2 - Proxy):
+# - `gluetun` establishes the VPN tunnel.
+# - `vpn-proxy` (SOCKS5) runs inside gluetun's network namespace
+#   (via `network_mode: service:gluetun`) so the proxy's outbound
+#   traffic exits via the VPN.
+# - Downloaders and ARR apps run on `media_net` and are configured
+#   to use `socks5://gluetun:1080` for outbound HTTP/HTTPS and where
+#   supported for download protocols.
+#
+# Security notes:
+# - VPN credentials should be kept out of VCS. Use `./secrets/vpn_credentials.env`
+#   or a proper secret manager. See README for details.
+# - Some apps require SOCKS5 configured in the app UI for torrent/usenet.
+# - Verify the `172.20.0.0/16` subnet does not conflict with your LAN or VPN.
+###############################################
+
+ 
+
+x-logging: &default_logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # VPN gateway (gluetun) - provides the VPN tunnel and serves as the namespace for the proxy
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - VPN_SERVICE_PROVIDER=nordvpn
+      - VPN_TYPE=openvpn
+      - SERVER_COUNTRIES=United States
+      # Credentials should be mounted via the secret below; some images accept file-based auth.
+      # See README for how to format ./secrets/vpn_credentials.env
+    volumes:
+      - ${CONFIG_ROOT}/gluetun:/gluetun
+    restart: always
+    networks:
+      - media_net
+    healthcheck:
+      test: ["CMD-SHELL", "test -c /dev/net/tun || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    logging: *default_logging
+    secrets:
+      - vpn_credentials
+
+  # SOCKS5 proxy running inside the VPN network namespace. Other services will use this proxy
+  # for outbound traffic. This service shares gluetun's network namespace so its outbound
+  # traffic goes through the VPN while other containers can reach it at hostname 'gluetun'.
+  vpn-proxy:
+    image: serjs/go-socks5-proxy:latest
+    # run inside the gluetun network namespace so upstream traffic leaves via the VPN
+    network_mode: "service:gluetun"
+    container_name: vpn-proxy
+    command: -p 1080
+    restart: unless-stopped
+    # NOTE: we intentionally avoid a healthcheck that depends on external
+    # tooling (ss, nc, curl) because minimal SOCKS images may not contain
+    # those tools and false failures are common. If you prefer, replace
+    # the image with one that contains a health-checkable binary and add
+    # a suitable `healthcheck:` block.
+    logging: *default_logging
+
+  # Downloaders -- on the shared internal network so ARR apps can reach them.
+  # They will be configured to use the SOCKS5 proxy at socks5://gluetun:1080
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TIMEZONE}
+      - WEBUI_PORT=8080
+      - HTTP_PROXY=socks5://gluetun:1080
+      - HTTPS_PROXY=socks5://gluetun:1080
+      - ALL_PROXY=socks5://gluetun:1080
+    volumes:
+      - ${CONFIG_ROOT}/qbittorrent/config:/config
+      - ${MEDIA_ROOT}:/data
+    depends_on:
+      - gluetun
+      - vpn-proxy
+    restart: unless-stopped
+    networks:
+      - media_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS --max-time 3 http://localhost:8080 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    logging: *default_logging
+
+  nzbget:
+    image: lscr.io/linuxserver/nzbget:latest
+    container_name: nzbget
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TIMEZONE}
+      - HTTP_PROXY=socks5://gluetun:1080
+      - HTTPS_PROXY=socks5://gluetun:1080
+      - ALL_PROXY=socks5://gluetun:1080
+    volumes:
+      - ${CONFIG_ROOT}/nzbget/config:/config
+      - ${MEDIA_ROOT}:/data
+    depends_on:
+      - gluetun
+      - vpn-proxy
+    restart: unless-stopped
+    networks:
+      - media_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS --max-time 3 http://localhost:6789 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    logging: *default_logging
+
+  # ARR apps (Radarr/Sonarr/Prowlarr/Lidarr) sit on the internal network and reach
+  # downloaders over the same network. They will be configured to use the proxy for
+  # outbound connections (indexers/updates) while still being able to talk to downloaders.
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TIMEZONE}
+      - HTTP_PROXY=socks5://gluetun:1080
+      - HTTPS_PROXY=socks5://gluetun:1080
+    volumes:
+      - ${CONFIG_ROOT}/prowlarr/config:/config
+    depends_on:
+      - gluetun
+      - vpn-proxy
+    restart: unless-stopped
+    networks:
+      - media_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS --max-time 3 http://localhost:9696 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    logging: *default_logging
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TIMEZONE}
+      - HTTP_PROXY=socks5://gluetun:1080
+      - HTTPS_PROXY=socks5://gluetun:1080
+    volumes:
+      - ${CONFIG_ROOT}/radarr/config:/config
+      - ${MEDIA_ROOT}:/data
+    depends_on:
+      - gluetun
+      - vpn-proxy
+    restart: unless-stopped
+    networks:
+      - media_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS --max-time 3 http://localhost:7878 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    logging: *default_logging
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TIMEZONE}
+      - HTTP_PROXY=socks5://gluetun:1080
+      - HTTPS_PROXY=socks5://gluetun:1080
+    volumes:
+      - ${CONFIG_ROOT}/sonarr/config:/config
+      - ${MEDIA_ROOT}:/data
+    depends_on:
+      - gluetun
+      - vpn-proxy
+    restart: unless-stopped
+    networks:
+      - media_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS --max-time 3 http://localhost:8989 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    logging: *default_logging
+
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    container_name: lidarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TIMEZONE}
+      - HTTP_PROXY=socks5://gluetun:1080
+      - HTTPS_PROXY=socks5://gluetun:1080
+    volumes:
+      - ${CONFIG_ROOT}/lidarr/config:/config
+      - ${MEDIA_ROOT}:/data
+    depends_on:
+      - gluetun
+      - vpn-proxy
+    restart: unless-stopped
+    networks:
+      - media_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS --max-time 3 http://localhost:8686 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    logging: *default_logging
+
+  # FRONTEND (exposed via Cloudflare tunnel / local LAN)
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${CONFIG_ROOT}/jellyfin/config:/config
+      - ${MEDIA_ROOT}/media:/data/media
+    ports:
+      - 8096:8096
+    networks:
+      - media_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS --max-time 3 http://localhost:8096 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    logging: *default_logging
+
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${CONFIG_ROOT}/jellyseerr/config:/app/config
+    ports:
+      - 5055:5055
+    networks:
+      - media_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS --max-time 3 http://localhost:5055 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    logging: *default_logging
+
+secrets:
+  vpn_credentials:
+    file: ./secrets/vpn_credentials.env
+
+networks:
+  media_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
