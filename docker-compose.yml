@@ -99,6 +99,8 @@ services:
     restart: unless-stopped
     networks:
       - media_net
+    ports:
+      - 8080:8080
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS --max-time 3 http://localhost:8080 || exit 1"]
       interval: 30s
@@ -125,6 +127,8 @@ services:
     restart: unless-stopped
     networks:
       - media_net
+    ports:
+      - 6789:6789
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS --max-time 3 http://localhost:6789 || exit 1"]
       interval: 30s
@@ -152,6 +156,8 @@ services:
     restart: unless-stopped
     networks:
       - media_net
+    ports:
+      - 9696:9696
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS --max-time 3 http://localhost:9696 || exit 1"]
       interval: 30s
@@ -177,6 +183,8 @@ services:
     restart: unless-stopped
     networks:
       - media_net
+    ports:
+      - 7878:7878
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS --max-time 3 http://localhost:7878 || exit 1"]
       interval: 30s
@@ -202,6 +210,8 @@ services:
     restart: unless-stopped
     networks:
       - media_net
+    ports:
+      - 8989:8989
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS --max-time 3 http://localhost:8989 || exit 1"]
       interval: 30s
@@ -227,6 +237,8 @@ services:
     restart: unless-stopped
     networks:
       - media_net
+    ports:
+      - 8686:8686
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS --max-time 3 http://localhost:8686 || exit 1"]
       interval: 30s
