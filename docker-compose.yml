@@ -62,11 +62,11 @@ services:
   # for outbound traffic. This service shares gluetun's network namespace so its outbound
   # traffic goes through the VPN while other containers can reach it at hostname 'gluetun'.
   vpn-proxy:
-    image: serjs/go-socks5-proxy:latest
+    image: dperson/tinc-socks:latest
     # run inside the gluetun network namespace so upstream traffic leaves via the VPN
     network_mode: "service:gluetun"
     container_name: vpn-proxy
-    command: -p 1080
+    command: socks-server -p 1080
     restart: unless-stopped
     # NOTE: we intentionally avoid a healthcheck that depends on external
     # tooling (ss, nc, curl) because minimal SOCKS images may not contain
@@ -74,8 +74,6 @@ services:
     # the image with one that contains a health-checkable binary and add
     # a suitable `healthcheck:` block.
     logging: *default_logging
-    environment:
-      - REQUIRE_AUTH=false
 
   # Downloaders -- on the shared internal network so ARR apps can reach them.
   # They will be configured to use the SOCKS5 proxy at socks5://gluetun:1080
