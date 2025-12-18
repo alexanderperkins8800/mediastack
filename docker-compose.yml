@@ -74,6 +74,8 @@ services:
     # the image with one that contains a health-checkable binary and add
     # a suitable `healthcheck:` block.
     logging: *default_logging
+    environment:
+      - REQUIRE_AUTH=false
 
   # Downloaders -- on the shared internal network so ARR apps can reach them.
   # They will be configured to use the SOCKS5 proxy at socks5://gluetun:1080
