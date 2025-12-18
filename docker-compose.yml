@@ -285,14 +285,16 @@ services:
       - ${CONFIG_ROOT}/jellyfin/config:/config
       - ${MEDIA_ROOT}:/data
     devices:
+      # Use this with intel integrated graphics. Otherwise comment out. 
       - /dev/dri/renderD128:/dev/dri/renderD128
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    # Use this ONLY if you've installed nvidia container toolkit. Otherwise comment out. 
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
     ports:
       - 8096:8096
     networks:
