@@ -284,6 +284,15 @@ services:
     volumes:
       - ${CONFIG_ROOT}/jellyfin/config:/config
       - ${MEDIA_ROOT}:/data
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     ports:
       - 8096:8096
     networks:
