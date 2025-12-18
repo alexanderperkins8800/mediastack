@@ -62,10 +62,9 @@ services:
   # for outbound traffic. This service shares gluetun's network namespace so its outbound
   # traffic goes through the VPN while other containers can reach it at hostname 'gluetun'.
   vpn-proxy:
-    image: dperson/socks5-proxy:latest
+    image: ghcr.io/qdm12/socks5-proxy:latest
     # run inside the gluetun network namespace so upstream traffic leaves via the VPN
     container_name: vpn-proxy
-    command: socks-server -p 1080
     restart: unless-stopped
     # NOTE: we intentionally avoid a healthcheck that depends on external
     # tooling (ss, nc, curl) because minimal SOCKS images may not contain
