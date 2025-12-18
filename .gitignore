@@ -1,4 +1,5 @@
 .env
+mediaconf.env
 secrets/
 secrets/*
 # Ignore sensitive logs and local overrides
