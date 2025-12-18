@@ -288,13 +288,13 @@ services:
       # Use this with intel integrated graphics. Otherwise comment out. 
       - /dev/dri/renderD128:/dev/dri/renderD128
     # Use this ONLY if you've installed nvidia container toolkit. Otherwise comment out. 
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     ports:
       - 8096:8096
     networks:
@@ -333,4 +333,5 @@ networks:
     driver: bridge
     ipam:
       config:
+
         - subnet: 172.20.0.0/16
