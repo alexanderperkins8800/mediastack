@@ -297,6 +297,7 @@ services:
               capabilities: [gpu]
     ports:
       - 8096:8096
+      - 9443:9443
     networks:
       - media_net
     restart: unless-stopped
@@ -335,3 +336,4 @@ networks:
       config:
 
         - subnet: 172.20.0.0/16
+
